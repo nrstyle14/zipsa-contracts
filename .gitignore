@@ -1,0 +1,25 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# 환경변수
+.env
+.env.*
+!.env.example
+
+# Node / pnpm
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 로컬 작업 파일 (커밋 대상 아님)
+.claude/
+.remember/
+dev_doc/
+.DS_Store
+
+# 서명된 위임 산출물
+delegation.json
+delegation.json.*
+e2e-delegation.json

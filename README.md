@@ -59,15 +59,24 @@ must always be paired with the cumulative cap; see `test/erc7710/CumulativeDrain
 
 ## On-chain record
 
-One full cycle on GIWA Sepolia, in order. Each link opens the transaction on Blockscout.
+One full cycle on GIWA Sepolia in block order: binding, payment, two policy refusals, and
+revocation. Refused attempts stay on chain with their revert reason, same as the successes.
+Each link opens the transaction on Blockscout.
 
 | Step | Transaction | Result |
 |---|---|---|
 | Owner EOA converted with EIP-7702 (type-4) | [`0x47aa…cf50`](https://sepolia-explorer.giwa.io/tx/0x47aaba300d9553e870e43b9b4e024532ed5e3a2c6cd6f7342e09d0534e1ecf50) | success, 36,844 gas |
+| `proposeBinding`, owner proposes the agent wallet | [`0x61b0…12bc`](https://sepolia-explorer.giwa.io/tx/0x61b0effaad0f7ac98ebe5a0ee1c484320a01d51d62a18ea2cd6cf2200d7912bc) | success, 130,056 gas |
+| `acceptBinding`, agent accepts | [`0x9f5f…cb00`](https://sepolia-explorer.giwa.io/tx/0x9f5f134873eb1f01bd94de3bc9ad226f498eac9d464190d7ecddb52d945acb00) | success, 195,047 gas |
 | `enableDelegation` | [`0x2a04…b641`](https://sepolia-explorer.giwa.io/tx/0x2a04cd442e5ca58a469699fd30db06b3b432ae328140ed98183fd90d7107b641) | success, 80,592 gas |
 | `redeemDelegations`, 2 tKRW paid from the owner's balance | [`0xaf5e…8b55`](https://sepolia-explorer.giwa.io/tx/0xaf5ea45f01f3089caeb368088dc653b4eab25340b3b08e71a04938ffd55a8b55) | success, 393,987 gas |
+| `redeemDelegations`, 5,000 tKRW against a 50 tKRW per-transaction cap | [`0x1751…675b`](https://sepolia-explorer.giwa.io/tx/0x175141601a69c44f27eac0b7a425ba3ab12c3681aa8af0187e979f965f5d675b) | **reverted** · `PerTxCapExceeded`, 132,665 gas |
+| `redeemDelegations` to an unverified recipient (`0x…dEaD`) | [`0x0b3a…d105`](https://sepolia-explorer.giwa.io/tx/0x0b3aeccc29bebcc6287f198bbb42bbd915a7f81597305bba676e532f363ad105) | **reverted** · `RecipientNotVerified`, 272,320 gas |
 | `disableDelegation` by the owner | [`0x3ccf…ae46`](https://sepolia-explorer.giwa.io/tx/0x3ccf4056b174357ba8889c0c168f99ea8b34b436f4f0f5539a57f2332cd4ae46) | success, 102,557 gas |
-| `redeemDelegations` right after revocation | [`0x5bb1…9def`](https://sepolia-explorer.giwa.io/tx/0x5bb13c0b52de61175637a42bf2228bda1f377316c9887a23bd06850ba8b8d9ef) | **reverted**, 73,073 gas |
+| `redeemDelegations` right after revocation | [`0x5bb1…d9ef`](https://sepolia-explorer.giwa.io/tx/0x5bb13c0b52de61175637a42bf2228bda1f377316c9887a23bd06850ba8b8d9ef) | **reverted** · `CannotUseADisabledDelegation`, 73,073 gas |
+
+Revert data from any of these can be decoded with `decodeRevert` in
+`packages/delegation/src/errors.ts`, which bundles the DelegationManager and enforcer error ABIs.
 
 ## Build and test
 

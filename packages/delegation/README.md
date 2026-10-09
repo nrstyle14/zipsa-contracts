@@ -1,35 +1,36 @@
 # @jipsa/delegation
 
-ERC-7710 위임을 조립·직렬화·리딤하는 공용 TypeScript 패키지. 위임을 발급하는 쪽(주인)과 실행하는 쪽(에이전트)이 같은 인코딩을 쓰도록 한 곳에 모았다.
+Shared TypeScript package that assembles, serializes and redeems ERC-7710 delegations. The side that issues a delegation (the owner) and the side that executes it (the agent) must use the same encoding, so it lives in one place.
 
-## 왜 이 패키지가 필요한가
+## Why this package exists
 
-caveat `terms` 인코딩은 enforcer마다 다르고(packed vs abi.encode, 길이 고정),
-EIP-712 서명 대상에서는 `signature`·`args`가 제외되며, 위임 해시는 EIP-712
-typed-data 해시가 아니라 구조체 해시다. 이걸 대시보드와 에이전트가 각자
-구현하면 반드시 어긋난다. 여기 한 곳에서만 만든다.
+Caveat `terms` encoding differs per enforcer (packed vs `abi.encode`, fixed lengths),
+the EIP-712 signing payload excludes `signature` and `args`, and the delegation hash
+is a struct hash, not an EIP-712 typed-data hash. If the dashboard and the agent each
+implemented this on their own they would inevitably drift. It is built here, and only here.
 
-## 상수의 출처
+## Where the constants come from
 
-EIP-712 도메인·`ROOT_AUTHORITY`·ModeCode·타입해시는 전부
-`lib/delegation-framework` v1.3.0 소스에서 읽었고, 각 상수에 파일·줄 번호를
-주석으로 남겼다. **추측한 값은 없다.**
+The EIP-712 domain, `ROOT_AUTHORITY`, ModeCode and the type hashes were all read from
+the `lib/delegation-framework` v1.3.0 source, and each constant carries a comment with
+the file and line number it came from. **No value is guessed.**
 
-## 인코딩 검증 방식
+## How the encoding is verified
 
-`test/encoding.test.ts`의 기대값은 스냅샷이 아니라 **Solidity에서 뽑은 값**이다.
+The expected values in `test/encoding.test.ts` are not snapshots; they are **values
+produced by Solidity**.
 
 ```bash
-forge script script/PrintCaveats.s.sol   # 기대값 재생성
+forge script script/PrintCaveats.s.sol   # regenerate the expected values
 pnpm test
 ```
 
-TS와 Solidity 인코딩이 어긋나면 테스트가 깨진다. 실제로 이 방식으로
-`getDelegationHash`의 버그(caveat 해시 배열을 `abi.encode`로 이어 붙인 것 —
-원본은 `abi.encodePacked`)를 잡았다.
+If the TS and Solidity encodings diverge, the tests break. This is how a bug in
+`getDelegationHash` was actually caught (the caveat hash array was concatenated with
+`abi.encode`; the original uses `abi.encodePacked`).
 
-`test/roundtrip.test.ts`는 GIWA Sepolia를 포크한 anvil에 대고 서명 → 리딤
-왕복을 검증한다. anvil이나 주인 키가 없으면 자동 skip한다.
+`test/roundtrip.test.ts` verifies the sign → redeem round trip against an anvil fork of
+GIWA Sepolia. It skips automatically when anvil or the owner key is missing.
 
 ```bash
 anvil --fork-url https://sepolia-rpc-flashblocks.giwa.io --port 8545
@@ -37,10 +38,10 @@ set -a; source ../../.env; set +a
 pnpm test
 ```
 
-## 주의
+## Caution
 
-- **caveat 순서를 바꾸지 말 것.** 차단 사유가 순서에 의존한다 (`buildCaveats` 주석 참조).
-- **누적 상한을 빼지 말 것.** 건당 상한만으로는 반복 리딤을 막지 못한다.
-- **`startDate`는 체인 시각을 쓸 것.** 로컬 벽시계가 앞서면 기간 enforcer가
-  `transfer-not-started`로 첫 리딤을 막는다. `startDateFromChain(client)` 사용 권장.
-- **batch 모드로 보내지 말 것.** 우리 caveat은 Timestamp를 빼면 전부 single 전용이다.
+- **Do not reorder the caveats.** The revert reason depends on the order (see the `buildCaveats` comment).
+- **Do not drop the cumulative cap.** A per-transaction cap alone does not stop repeated redemptions.
+- **Use chain time for `startDate`.** If the local wall clock runs ahead, the period enforcer
+  rejects the first redemption with `transfer-not-started`. `startDateFromChain(client)` is recommended.
+- **Do not send in batch mode.** All of our caveats except Timestamp are single-mode only.

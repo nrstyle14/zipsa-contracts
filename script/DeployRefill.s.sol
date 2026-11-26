@@ -3,10 +3,13 @@ pragma solidity 0.8.23;
 
 import {Script, console} from "forge-std/Script.sol";
 
+import {LimitedCallsEnforcer} from "delegation-framework/src/enforcers/LimitedCallsEnforcer.sol";
+
 import {RefillThresholdEnforcer} from "../src/enforcers/RefillThresholdEnforcer.sol";
 import {BoundDelegatorEnforcer} from "../src/enforcers/BoundDelegatorEnforcer.sol";
 
-/// @notice F1 자동 충전 enforcer 2종 배포 — `RefillThresholdEnforcer`, `BoundDelegatorEnforcer`.
+/// @notice F1 자동 충전 enforcer 배포 — `RefillThresholdEnforcer`, `BoundDelegatorEnforcer`,
+///         그리고 충전 위임의 총 횟수 제한에 쓰는 `LimitedCallsEnforcer`(프레임워크 원본).
 ///
 /// 사용 (값은 직접 넣지 말고 환경변수로):
 ///   forge script script/DeployRefill.s.sol --rpc-url "$RPC_URL" --broadcast
@@ -17,11 +20,13 @@ import {BoundDelegatorEnforcer} from "../src/enforcers/BoundDelegatorEnforcer.so
 ///   GATE_ADDRESS      이미 배포된 Dojang 게이트 — terms 에 들어갈 값이라 코드 존재만 확인한다
 ///   REGISTRY_ADDRESS  이미 배포된 OwnerBindingRegistry — 같은 이유로 코드 존재만 확인한다
 ///
-/// @dev 두 enforcer 는 생성자 인자가 없고 상태도 없다. 게이트·레지스트리·토큰은 위임마다
-///      terms 로 넘기므로 배포 시점에 묶이지 않는다. 여기서 주소를 받는 것은 잘못된 네트워크에
-///      배포하는 실수를 막기 위한 사전 확인뿐이다.
+/// @dev 세 enforcer 모두 생성자 인자가 없다. 게이트·레지스트리·토큰은 위임마다 terms 로 넘기므로
+///      배포 시점에 묶이지 않는다. 여기서 주소를 받는 것은 잘못된 네트워크에 배포하는 실수를 막기
+///      위한 사전 확인뿐이다.
 ///
-///      충전 위임 묶음에 필요한 `LimitedCallsEnforcer`(프레임워크 원본)는 이 스크립트가 배포하지 않는다.
+///      `LimitedCallsEnforcer`는 GIWA Sepolia 기존 배포(DeployErc7710.s.sol)에 없어서 함께 배포한다.
+///      프레임워크 v1.3.0 원본을 그대로 배포한다 (수정 0줄). 카운터는 `[DelegationManager][delegationHash]`
+///      키라 다른 위임과 섞이지 않는다.
 contract DeployRefill is Script {
     error NoCodeAt(string name, address target);
 
@@ -40,11 +45,13 @@ contract DeployRefill is Script {
         vm.startBroadcast(pk_);
         RefillThresholdEnforcer refill_ = new RefillThresholdEnforcer();
         BoundDelegatorEnforcer bound_ = new BoundDelegatorEnforcer();
+        LimitedCallsEnforcer limited_ = new LimitedCallsEnforcer();
         vm.stopBroadcast();
 
         console.log("RefillThresholdEnforcer:   ", address(refill_));
         console.log("BoundDelegatorEnforcer:    ", address(bound_));
+        console.log("LimitedCallsEnforcer:      ", address(limited_));
         console.log("");
-        console.log("Next: put both addresses in packages/delegation/src/addresses.ts (ADDR_F1) and README.");
+        console.log("Next: put the three addresses in packages/delegation/src/addresses.ts (ADDR_F1) and README.");
     }
 }

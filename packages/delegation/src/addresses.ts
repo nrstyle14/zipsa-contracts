@@ -53,6 +53,26 @@ export const ADDR = {
 } as const satisfies Record<string, Address>;
 
 /**
+ * F1 자동 충전 enforcer — GIWA Sepolia 실배포 주소 (2026-11-27 배포·verify 완료, 블록 42369812).
+ * 출처: `forge script script/DeployRefill.s.sol` 출력, README.md "Deployed contracts"
+ *
+ * 타입을 `Address | undefined`로 둔 것은 다른 체인처럼 아직 배포 전인 경우를 위해서다.
+ * 비어 있으면 `buildRefillCaveats`·`buildSpendCaveats`는 주소를 인자로 받지 않는 한 예외를 던진다.
+ */
+export const ADDR_F1: {
+  /** 잔액 기준 미만일 때만 충전 · 수신처 = 바인딩된 지출용 계정 · 주인 도장 */
+  refillThresholdEnforcer: Address | undefined;
+  /** 지출용 계정과 에이전트가 같은 검증된 주인에게 바인딩 */
+  boundDelegatorEnforcer: Address | undefined;
+  /** 총 사용 횟수 (프레임워크 v1.3.0 원본, DeployRefill.s.sol이 함께 배포) */
+  limitedCallsEnforcer: Address | undefined;
+} = {
+  refillThresholdEnforcer: "0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C",
+  boundDelegatorEnforcer: "0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f",
+  limitedCallsEnforcer: "0x96efFEEe819Db13e6bb0A63F2057dF0Eca204533",
+};
+
+/**
  * Dojang attesterId — **발급 기관 식별자이며 attester의 지갑 주소가 아니다.**
  * `DojangScroll.isVerified(address, bytes32)`의 두 번째 인자.
  */

@@ -7,6 +7,8 @@ import erc20TransferAmountEnforcer from "../abi/ERC20TransferAmountEnforcer.json
 import jipsaPerTxCapEnforcer from "../abi/JipsaPerTxCapEnforcer.json" with { type: "json" };
 import jipsaSettlementToken from "../abi/JipsaSettlementToken.json" with { type: "json" };
 import ownerBindingRegistry from "../abi/OwnerBindingRegistry.json" with { type: "json" };
+import refillThresholdEnforcer from "../abi/RefillThresholdEnforcer.json" with { type: "json" };
+import boundDelegatorEnforcer from "../abi/BoundDelegatorEnforcer.json" with { type: "json" };
 
 /**
  * `forge inspect <컨트랙트> abi` 로 생성한 ABI.
@@ -23,4 +25,6 @@ export const ABI = {
   jipsaPerTxCapEnforcer: jipsaPerTxCapEnforcer as Abi,
   tKRW: jipsaSettlementToken as Abi,
   ownerBindingRegistry: ownerBindingRegistry as Abi,
+  refillThresholdEnforcer: refillThresholdEnforcer as Abi,
+  boundDelegatorEnforcer: boundDelegatorEnforcer as Abi,
 } as const;

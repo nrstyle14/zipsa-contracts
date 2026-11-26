@@ -21,6 +21,10 @@ export const ERROR_ABI: Abi = [
   ...ABI.jipsaPerTxCapEnforcer.filter((f) => f.type === "error"),
   ...ABI.erc20TransferAmountEnforcer.filter((f) => f.type === "error"),
   ...ABI.erc20PeriodTransferEnforcer.filter((f) => f.type === "error"),
+  // F1 — 겹치는 에러(InvalidTermsLength·AgentNotBound 등)는 Dojang과 시그니처가 같아
+  // 셀렉터도 같으므로 위의 Dojang 프래그먼트로 먼저 디코딩된다. 이름·인자 형태는 동일하다.
+  ...ABI.refillThresholdEnforcer.filter((f) => f.type === "error"),
+  ...ABI.boundDelegatorEnforcer.filter((f) => f.type === "error"),
 ];
 
 /**
@@ -94,6 +98,18 @@ const KNOWN_CUSTOM: Record<string, string> = {
   InvalidEOASignature: "위임 서명이 유효하지 않습니다",
   InvalidContract: "허용되지 않은 토큰 컨트랙트입니다",
   InvalidMethod: "허용되지 않은 메서드입니다",
+
+  // ---- F1 자동 충전 (RefillThresholdEnforcer) ----
+  BalanceNotBelowThreshold: "지출용 계정 잔액이 충전 기준 이상이라 충전하지 않습니다",
+  SpenderNotBound: "충전 대상 지출용 계정이 이 주인에게 바인딩되어 있지 않습니다",
+  InvalidRecipient: "충전 수신처가 지정된 지출용 계정이 아닙니다",
+  InvalidRefillAmount: "충전량이 위임에 정해진 1회 충전량과 다릅니다",
+  InvalidValue: "충전 실행에 네이티브 코인을 실을 수 없습니다",
+  ZeroRefillAmount: "위임의 1회 충전량이 0입니다",
+  BalanceQueryFailed: "지출용 계정의 토큰 잔액을 조회할 수 없습니다",
+
+  // ---- F1 지출 (BoundDelegatorEnforcer) ----
+  DelegatorNotBound: "위임한 지출용 계정이 어떤 주인에게도 바인딩되어 있지 않습니다",
 };
 
 /** 스톡 enforcer의 require 문자열 → 사람이 읽는 문장 */
@@ -101,6 +117,7 @@ const KNOWN_REQUIRE: Record<string, string> = {
   "ERC20TransferAmountEnforcer:allowance-exceeded": "총예산을 초과했습니다",
   "ERC20PeriodTransferEnforcer:transfer-amount-exceeded": "기간 한도를 초과했습니다",
   "ERC20PeriodTransferEnforcer:transfer-not-started": "위임 시작 시각이 아직 지나지 않았습니다",
+  "LimitedCallsEnforcer:limit-exceeded": "위임의 총 사용 횟수를 다 썼습니다",
   "TimestampEnforcer:expired-delegation": "위임이 만료되었습니다",
   "TimestampEnforcer:early-delegation": "위임 시작 시각이 아직 지나지 않았습니다",
   "AllowedTargetsEnforcer:target-address-not-allowed": "허용되지 않은 수신 컨트랙트입니다",

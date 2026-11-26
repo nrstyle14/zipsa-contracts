@@ -53,7 +53,7 @@ const CAST = {
     "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000234c696d6974656443616c6c73456e666f726365723a6c696d69742d65786365656465640000000000000000000000000000000000000000000000000000000000",
 } as const;
 
-/** 배포 전이라 ADDR_F1이 비어 있으므로 테스트용 주소를 넘긴다 */
+/** 인자로 넘기는 경로(다른 체인·로컬 배포)를 확인하기 위한 테스트용 주소 */
 const F1: F1EnforcerAddresses = {
   refillThresholdEnforcer: "0x000000000000000000000000000000000000F101",
   boundDelegatorEnforcer: "0x000000000000000000000000000000000000F102",
@@ -128,9 +128,16 @@ describe("충전 위임 caveat 묶음", () => {
     expect(c.map((x) => x.enforcer)).not.toContain(ADDR.perTxCapEnforcer);
   });
 
-  it("배포 전(ADDR_F1 비어 있음)에는 주소 없이 만들 수 없다", () => {
-    expect(ADDR_F1.refillThresholdEnforcer).toBeUndefined();
-    expect(() => buildRefillCaveats(REFILL, START_DATE)).toThrow(/refillThresholdEnforcer, limitedCallsEnforcer/);
+  it("주소를 넘기지 않으면 ADDR_F1(GIWA Sepolia 배포 주소)을 쓴다", () => {
+    const c = buildRefillCaveats(REFILL, START_DATE);
+    expect(c[1]!.enforcer).toBe("0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C");
+    expect(c[3]!.enforcer).toBe("0x96efFEEe819Db13e6bb0A63F2057dF0Eca204533");
+  });
+
+  it("주소가 비어 있으면 만들 수 없다", () => {
+    expect(() =>
+      buildRefillCaveats(REFILL, START_DATE, { refillThresholdEnforcer: undefined, limitedCallsEnforcer: undefined }),
+    ).toThrow(/refillThresholdEnforcer, limitedCallsEnforcer/);
   });
 
   it("충전이 한 번도 통과할 수 없는 정책은 거부한다", () => {
@@ -158,8 +165,14 @@ describe("지출 위임 caveat 묶음", () => {
     expect(c.map((x) => x.enforcer)).not.toContain(ADDR.dojangEnforcer);
   });
 
-  it("배포 전에는 주소 없이 만들 수 없다", () => {
-    expect(() => buildSpendCaveats(SPEND, START_DATE)).toThrow(/boundDelegatorEnforcer/);
+  it("주소를 넘기지 않으면 ADDR_F1(GIWA Sepolia 배포 주소)을 쓴다", () => {
+    expect(buildSpendCaveats(SPEND, START_DATE)[4]!.enforcer).toBe("0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f");
+  });
+
+  it("주소가 비어 있으면 만들 수 없다", () => {
+    expect(() => buildSpendCaveats(SPEND, START_DATE, { boundDelegatorEnforcer: undefined })).toThrow(
+      /boundDelegatorEnforcer/,
+    );
   });
 });
 

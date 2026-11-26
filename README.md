@@ -20,14 +20,14 @@ Verified Address as the identity source.
 4. **Anything outside the policy reverts. The owner can revoke at any time.** Every caveat
    enforcer runs on-chain for every redemption. `disableDelegation` from the owner stops the
    agent immediately.
-5. **Automatic refill (in development).** The main wallet signs one conditional refill delegation
+5. **Automatic refill.** The main wallet signs one conditional refill delegation
    to a spending account that is bound to the same verified owner. Anyone can execute a refill,
    but only while the spending account's balance is below the threshold, and every refill is
    bounded by a period cap and a total refill count.
 
 ## Deployed contracts (GIWA Sepolia)
 
-All 12 contracts are verified on Blockscout. Total deployment gas: **10,841,972**.
+All 15 contracts are verified on Blockscout. Total deployment gas: **12,316,997** (initial 12 contracts: 10,841,972; automatic-refill enforcers: 1,475,025).
 
 Written by ZIPSA:
 
@@ -38,8 +38,8 @@ Written by ZIPSA:
 | `OwnerBindingRegistry` | Binds an agent wallet to a verified owner (propose → accept) | [`0x6ef7F805fBCaA49cbfc11C861E2EC051549433C7`](https://sepolia-explorer.giwa.io/address/0x6ef7F805fBCaA49cbfc11C861E2EC051549433C7) |
 | `DojangCaveatEnforcer` | ERC-7710 caveat: recipient verified, agent bound, owner verified | [`0x8C9c8437C27003f3d86F438c7147668d9cC5948C`](https://sepolia-explorer.giwa.io/address/0x8C9c8437C27003f3d86F438c7147668d9cC5948C) |
 | `JipsaPerTxCapEnforcer` | ERC-7710 caveat: per-transaction amount cap | [`0xdea5DF3357e0EEf6A841d3639d115eb57b42B642`](https://sepolia-explorer.giwa.io/address/0xdea5DF3357e0EEf6A841d3639d115eb57b42B642) |
-| `RefillThresholdEnforcer` | ERC-7710 caveat: refill only a bound spending account, only below its balance threshold, exact refill amount, owner verified | to be deployed |
-| `BoundDelegatorEnforcer` | ERC-7710 caveat: delegating account and agent bound to the same verified owner, optional verified recipient | to be deployed |
+| `RefillThresholdEnforcer` | ERC-7710 caveat: refill only a bound spending account, only below its balance threshold, exact refill amount, owner verified | [`0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C`](https://sepolia-explorer.giwa.io/address/0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C) |
+| `BoundDelegatorEnforcer` | ERC-7710 caveat: delegating account and agent bound to the same verified owner, optional verified recipient | [`0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f`](https://sepolia-explorer.giwa.io/address/0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f) |
 
 From the delegation-framework (v1.3.0, deployed unchanged):
 
@@ -52,6 +52,7 @@ From the delegation-framework (v1.3.0, deployed unchanged):
 | `ERC20TransferAmountEnforcer` | Caveat: cumulative transfer cap | [`0x4cC2931c6dB25aAaA6360b802b7987f2A39eF559`](https://sepolia-explorer.giwa.io/address/0x4cC2931c6dB25aAaA6360b802b7987f2A39eF559) |
 | `ERC20PeriodTransferEnforcer` | Caveat: per-period transfer cap | [`0x73e8aEF3aD187524FD44B8f9b5B700689FE41071`](https://sepolia-explorer.giwa.io/address/0x73e8aEF3aD187524FD44B8f9b5B700689FE41071) |
 | `TimestampEnforcer` | Caveat: validity window | [`0x972298257A69792B0219900D8A2C9DAeC8094cC6`](https://sepolia-explorer.giwa.io/address/0x972298257A69792B0219900D8A2C9DAeC8094cC6) |
+| `LimitedCallsEnforcer` | Caveat: total number of redemptions | [`0x96efFEEe819Db13e6bb0A63F2057dF0Eca204533`](https://sepolia-explorer.giwa.io/address/0x96efFEEe819Db13e6bb0A63F2057dF0Eca204533) |
 
 External dependencies on GIWA Sepolia: `DojangScroll`
 [`0xd5077b67dcb56caC8b270C7788FC3E6ee03F17B9`](https://sepolia-explorer.giwa.io/address/0xd5077b67dcb56caC8b270C7788FC3E6ee03F17B9)

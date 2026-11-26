@@ -20,6 +20,10 @@ Verified Address as the identity source.
 4. **Anything outside the policy reverts. The owner can revoke at any time.** Every caveat
    enforcer runs on-chain for every redemption. `disableDelegation` from the owner stops the
    agent immediately.
+5. **Automatic refill (in development).** The main wallet signs one conditional refill delegation
+   to a spending account that is bound to the same verified owner. Anyone can execute a refill,
+   but only while the spending account's balance is below the threshold, and every refill is
+   bounded by a period cap and a total refill count.
 
 ## Deployed contracts (GIWA Sepolia)
 
@@ -34,6 +38,8 @@ Written by ZIPSA:
 | `OwnerBindingRegistry` | Binds an agent wallet to a verified owner (propose → accept) | [`0x6ef7F805fBCaA49cbfc11C861E2EC051549433C7`](https://sepolia-explorer.giwa.io/address/0x6ef7F805fBCaA49cbfc11C861E2EC051549433C7) |
 | `DojangCaveatEnforcer` | ERC-7710 caveat: recipient verified, agent bound, owner verified | [`0x8C9c8437C27003f3d86F438c7147668d9cC5948C`](https://sepolia-explorer.giwa.io/address/0x8C9c8437C27003f3d86F438c7147668d9cC5948C) |
 | `JipsaPerTxCapEnforcer` | ERC-7710 caveat: per-transaction amount cap | [`0xdea5DF3357e0EEf6A841d3639d115eb57b42B642`](https://sepolia-explorer.giwa.io/address/0xdea5DF3357e0EEf6A841d3639d115eb57b42B642) |
+| `RefillThresholdEnforcer` | ERC-7710 caveat: refill only a bound spending account, only below its balance threshold, exact refill amount, owner verified | to be deployed |
+| `BoundDelegatorEnforcer` | ERC-7710 caveat: delegating account and agent bound to the same verified owner, optional verified recipient | to be deployed |
 
 From the delegation-framework (v1.3.0, deployed unchanged):
 

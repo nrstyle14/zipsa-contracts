@@ -1,5 +1,5 @@
 import { encodeAbiParameters, encodePacked, type Address, type Hex } from "viem";
-import { ADDR } from "./addresses.js";
+import { ADDR, ADDR_F1 } from "./addresses.js";
 import type { Caveat, JipsaPolicy } from "./delegation.js";
 
 /** `IERC20.transfer(address,uint256)` 셀렉터 */
@@ -164,6 +164,208 @@ export function buildCaveats(policy: JipsaPolicy, startDate?: bigint): Caveat[] 
     {
       enforcer: ADDR.dojangEnforcer,
       terms: dojangTerms(ADDR.dojangGate, ADDR.bindingRegistry, ADDR.tKRW, policy.verifiedRecipientOnly),
+      args: EMPTY_ARGS,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// F1 자동 충전 — 메인 지갑 →(충전 위임)→ 지출용 계정 →(지출 위임)→ 에이전트
+// 설계: docs/design/F1_Refill.md
+// ---------------------------------------------------------------------------
+
+/**
+ * `DelegationManager.ANY_DELEGATE` — 누구나 리딤할 수 있는 위임의 delegate 값.
+ * 출처: lib/delegation-framework/src/DelegationManager.sol `ANY_DELEGATE = address(0xa11)`
+ * 충전 위임은 조건이 전부 enforcer에 있으므로 실행자를 지정하지 않는다.
+ */
+export const ANY_DELEGATE = "0x0000000000000000000000000000000000000a11" as const satisfies Address;
+
+/**
+ * 출처: src/enforcers/RefillThresholdEnforcer.sol `getTermsInfo`
+ * `terms.length == 192` — `abi.encode(gate, registry, token, spender, threshold, refillAmount)`.
+ * ⚠️ packed가 아니라 **abi.encode**다. `refillAmount == 0`이면 enforcer가 `ZeroRefillAmount`로 거부한다.
+ */
+export function refillThresholdTerms(
+  gate: Address,
+  registry: Address,
+  token: Address,
+  spender: Address,
+  threshold: bigint,
+  refillAmount: bigint,
+): Hex {
+  return encodeAbiParameters(
+    [
+      { type: "address" },
+      { type: "address" },
+      { type: "address" },
+      { type: "address" },
+      { type: "uint256" },
+      { type: "uint256" },
+    ],
+    [gate, registry, token, spender, threshold, refillAmount],
+  );
+}
+
+/**
+ * 출처: src/enforcers/BoundDelegatorEnforcer.sol `getTermsInfo`
+ * `terms.length == 128` — `DojangCaveatEnforcer`와 **같은 형식**
+ * `abi.encode(gate, registry, token, verifiedRecipientOnly)`.
+ */
+export function boundDelegatorTerms(
+  gate: Address,
+  registry: Address,
+  token: Address,
+  verifiedRecipientOnly: boolean,
+): Hex {
+  return dojangTerms(gate, registry, token, verifiedRecipientOnly);
+}
+
+/**
+ * 출처: lib/delegation-framework/src/enforcers/LimitedCallsEnforcer.sol `getTermsInfo`
+ * `terms.length == 32` — `uint256 limit`.
+ */
+export function limitedCallsTerms(limit: bigint): Hex {
+  return encodePacked(["uint256"], [limit]);
+}
+
+/** 충전 위임 정책 (메인 지갑이 한 번 서명) */
+export interface RefillPolicy {
+  /** 충전 수신처 — 주인에게 바인딩된 지출용 계정 */
+  spender: Address;
+  /** 지출용 계정 잔액이 이 값 **미만**일 때만 충전 */
+  threshold: bigint;
+  /** 1회 충전량 — 전송액이 정확히 이 값이어야 한다 */
+  refillAmount: bigint;
+  /** 기간당 충전 합계 상한 (메인 지갑 유출 상한) */
+  periodCap: bigint;
+  /** 재서명 전 총 충전 횟수 */
+  maxRefills: bigint;
+  /** unix 초 */
+  validUntil: number;
+  /** 기간 길이 (초). 기본 1일 */
+  periodDuration?: bigint;
+}
+
+/** F1 enforcer 주소 — `ADDR_F1`이 비어 있는 동안에는 인자로 넘긴다 */
+export interface F1EnforcerAddresses {
+  refillThresholdEnforcer: Address;
+  boundDelegatorEnforcer: Address;
+  limitedCallsEnforcer: Address;
+}
+
+function resolveF1Addresses(
+  override: Partial<F1EnforcerAddresses> | undefined,
+  needed: readonly (keyof F1EnforcerAddresses)[],
+): F1EnforcerAddresses {
+  const merged = { ...ADDR_F1, ...override };
+  const missing = needed.filter((k) => !merged[k]);
+  if (missing.length > 0) {
+    throw new Error(
+      `F1 enforcer 주소가 없습니다: ${missing.join(", ")} — 배포 후 ADDR_F1을 채우거나 인자로 넘기세요`,
+    );
+  }
+  return merged as F1EnforcerAddresses;
+}
+
+function defaultStartDate(startDate?: bigint): bigint {
+  return startDate ?? BigInt(Math.floor(Date.now() / 1000)) - PERIOD_START_SKEW_BUFFER;
+}
+
+/**
+ * 충전 위임 caveat 묶음을 **확정된 순서로** 만든다.
+ *
+ * ① Timestamp ② **RefillThreshold** ③ ERC20PeriodTransfer ④ LimitedCalls
+ *
+ * view 검사(①②)를 앞에, 카운터를 쓰는 검사(③④)를 뒤에 둔다. revert 시 카운터도 되돌아가므로
+ * 순서는 안전성이 아니라 차단 사유에만 영향을 준다 — 잔액 조건은 ②, 기간 한도는 ③, 횟수 소진은 ④에서 걸린다.
+ * 회귀 테스트: test/erc7710/Refill.t.sol, test/erc7710/RefillScenario.t.sol
+ *
+ * `JipsaPerTxCap`은 넣지 않는다 — ②가 전송액을 `refillAmount`와 정확히 일치시키므로 중복이다.
+ * 이 묶음으로 만든 위임의 delegate는 `ANY_DELEGATE`로 둔다.
+ *
+ * 손실 상한 (고정 창 하나): 메인 유출 ≤ min(periodCap, refillAmount × 남은 횟수).
+ *
+ * @param startDate 기간 enforcer 기준 시각 — `buildCaveats`와 같은 규칙 (생략 시 로컬 시각 − 여유)
+ * @param addresses F1 enforcer 주소. 생략하면 `ADDR_F1`을 쓴다
+ */
+export function buildRefillCaveats(
+  policy: RefillPolicy,
+  startDate?: bigint,
+  addresses?: Partial<F1EnforcerAddresses>,
+): Caveat[] {
+  if (policy.refillAmount <= 0n) throw new Error("refillAmount는 0보다 커야 합니다");
+  if (policy.refillAmount > policy.periodCap) {
+    throw new Error("refillAmount가 periodCap보다 크면 충전이 한 번도 통과하지 못합니다");
+  }
+  if (policy.maxRefills <= 0n) throw new Error("maxRefills는 0보다 커야 합니다");
+
+  const f1 = resolveF1Addresses(addresses, ["refillThresholdEnforcer", "limitedCallsEnforcer"]);
+  const start = defaultStartDate(startDate);
+
+  return [
+    { enforcer: ADDR.timestampEnforcer, terms: timestampTerms(policy.validUntil), args: EMPTY_ARGS },
+    {
+      enforcer: f1.refillThresholdEnforcer,
+      terms: refillThresholdTerms(
+        ADDR.dojangGate,
+        ADDR.bindingRegistry,
+        ADDR.tKRW,
+        policy.spender,
+        policy.threshold,
+        policy.refillAmount,
+      ),
+      args: EMPTY_ARGS,
+    },
+    {
+      enforcer: ADDR.periodTransferEnforcer,
+      terms: periodTransferTerms(
+        ADDR.tKRW,
+        policy.periodCap,
+        start,
+        policy.periodDuration ?? PERIOD_DURATION_1D,
+      ),
+      args: EMPTY_ARGS,
+    },
+    { enforcer: f1.limitedCallsEnforcer, terms: limitedCallsTerms(policy.maxRefills), args: EMPTY_ARGS },
+  ];
+}
+
+/**
+ * 지출 위임(지출용 계정 → 에이전트) caveat 묶음을 **확정된 순서로** 만든다.
+ *
+ * ① Timestamp ② JipsaPerTxCap ③ ERC20PeriodTransfer ④ ERC20TransferAmount ⑤ **BoundDelegator**
+ *
+ * `buildCaveats`와 같은 금액 검사 순서에, 책임 귀속 검사를 Dojang 대신 BoundDelegator로 바꾼 것이다.
+ * 지출용 계정은 도장이 없으므로 Dojang enforcer로는 바인딩된 에이전트도 통과하지 못한다.
+ * 회귀 테스트: test/erc7710/BoundDelegator.t.sol
+ *
+ * @param policy `JipsaPolicy` 그대로 — `agent`가 delegate, `dailyCap`이 기간 한도
+ */
+export function buildSpendCaveats(
+  policy: JipsaPolicy,
+  startDate?: bigint,
+  addresses?: Partial<F1EnforcerAddresses>,
+): Caveat[] {
+  const f1 = resolveF1Addresses(addresses, ["boundDelegatorEnforcer"]);
+  const start = defaultStartDate(startDate);
+
+  return [
+    { enforcer: ADDR.timestampEnforcer, terms: timestampTerms(policy.validUntil), args: EMPTY_ARGS },
+    { enforcer: ADDR.perTxCapEnforcer, terms: perTxCapTerms(ADDR.tKRW, policy.perTxCap), args: EMPTY_ARGS },
+    {
+      enforcer: ADDR.periodTransferEnforcer,
+      terms: periodTransferTerms(ADDR.tKRW, policy.dailyCap, start),
+      args: EMPTY_ARGS,
+    },
+    {
+      enforcer: ADDR.erc20TransferAmountEnforcer,
+      terms: totalBudgetTerms(ADDR.tKRW, policy.totalBudget),
+      args: EMPTY_ARGS,
+    },
+    {
+      enforcer: f1.boundDelegatorEnforcer,
+      terms: boundDelegatorTerms(ADDR.dojangGate, ADDR.bindingRegistry, ADDR.tKRW, policy.verifiedRecipientOnly),
       args: EMPTY_ARGS,
     },
   ];

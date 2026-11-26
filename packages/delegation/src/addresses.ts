@@ -53,6 +53,26 @@ export const ADDR = {
 } as const satisfies Record<string, Address>;
 
 /**
+ * F1 자동 충전 enforcer 주소 — **아직 배포 전이라 비어 있다.**
+ *
+ * `forge script script/DeployRefill.s.sol` 로 배포한 뒤 값을 채운다.
+ * `LimitedCallsEnforcer`(프레임워크 원본)는 위 `ADDR`에 없으므로 따로 배포·확인해 채운다.
+ * 비어 있는 동안 `buildRefillCaveats`·`buildSpendCaveats`는 주소를 인자로 받지 않으면 예외를 던진다.
+ */
+export const ADDR_F1: {
+  /** 잔액 기준 미만일 때만 충전 · 수신처 = 바인딩된 지출용 계정 · 주인 도장 */
+  refillThresholdEnforcer: Address | undefined;
+  /** 지출용 계정과 에이전트가 같은 검증된 주인에게 바인딩 */
+  boundDelegatorEnforcer: Address | undefined;
+  /** 총 사용 횟수 (프레임워크 v1.3.0 원본) */
+  limitedCallsEnforcer: Address | undefined;
+} = {
+  refillThresholdEnforcer: undefined,
+  boundDelegatorEnforcer: undefined,
+  limitedCallsEnforcer: undefined,
+};
+
+/**
  * Dojang attesterId — **발급 기관 식별자이며 attester의 지갑 주소가 아니다.**
  * `DojangScroll.isVerified(address, bytes32)`의 두 번째 인자.
  */

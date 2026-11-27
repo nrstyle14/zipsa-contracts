@@ -9,6 +9,7 @@ import jipsaSettlementToken from "../abi/JipsaSettlementToken.json" with { type:
 import ownerBindingRegistry from "../abi/OwnerBindingRegistry.json" with { type: "json" };
 import refillThresholdEnforcer from "../abi/RefillThresholdEnforcer.json" with { type: "json" };
 import boundDelegatorEnforcer from "../abi/BoundDelegatorEnforcer.json" with { type: "json" };
+import paymentGate from "../abi/PaymentGate.json" with { type: "json" };
 
 /**
  * `forge inspect <컨트랙트> abi` 로 생성한 ABI.
@@ -27,4 +28,5 @@ export const ABI = {
   ownerBindingRegistry: ownerBindingRegistry as Abi,
   refillThresholdEnforcer: refillThresholdEnforcer as Abi,
   boundDelegatorEnforcer: boundDelegatorEnforcer as Abi,
+  paymentGate: paymentGate as Abi,
 } as const;

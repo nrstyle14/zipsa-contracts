@@ -6,6 +6,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
+import { ABI } from "./abis.js";
 import { ADDR } from "./addresses.js";
 import { MODE_SIMPLE_SINGLE, type Delegation } from "./delegation.js";
 
@@ -111,4 +112,30 @@ export function encodeRedeemMany(
     modes: payments.map(() => MODE_SIMPLE_SINGLE),
     executionCallDatas: payments.map((p) => encodeTokenTransferExecution(p.to, p.amount)),
   };
+}
+
+/**
+ * `PaymentGate.payDelegated(permissionContext, token, amount, ref)` calldata.
+ *
+ * 에이전트가 **게이트 주소로** 보내는 일반 트랜잭션이다. 게이트가 `redeemDelegations`를 대신 부르므로
+ * 위임의 수임자는 게이트여야 하고(`buildGateCaveats`), 위임은 정확히 1장이어야 한다.
+ *
+ * @param ref 주문 번호 (bytes32). 같은 값으로 두 번 내면 `RefAlreadyPaid`
+ */
+export function payDelegatedCalldata(
+  delegation: Delegation,
+  amount: bigint,
+  ref: Hex,
+  token: Address = ADDR.tKRW,
+): Hex {
+  return encodeFunctionData({
+    abi: ABI.paymentGate,
+    functionName: "payDelegated",
+    args: [encodePermissionContext([delegation]), token, amount, ref],
+  });
+}
+
+/** `PaymentGate.pay(token, amount, ref)` calldata — 사람이 승인 뒤 직접 내는 경로 */
+export function payCalldata(amount: bigint, ref: Hex, token: Address = ADDR.tKRW): Hex {
+  return encodeFunctionData({ abi: ABI.paymentGate, functionName: "pay", args: [token, amount, ref] });
 }

@@ -73,6 +73,19 @@ export const ADDR_F1: {
 };
 
 /**
+ * M2-1 결제 게이트 — GIWA Sepolia 실배포 주소 (2026-11-28 배포·verify 완료, 블록 42458920).
+ * 출처: `forge script script/DeployPaymentGate.s.sol` 출력, README.md "Deployed contracts"
+ *
+ * 수신처(`destination`)는 생성자에서 고정된 가맹처 A(`DEMO.merchantA`)다. 관리자는 배포자.
+ */
+export const ADDR_M2: {
+  /** 결제 게이트 — 허용 토큰 · 결제 책임자 도장 · 호출자 귀속 확인 */
+  paymentGate: Address | undefined;
+} = {
+  paymentGate: "0xF188B4261CC1AA1491a234Ebc5c7E4E9854f0d38",
+};
+
+/**
  * Dojang attesterId — **발급 기관 식별자이며 attester의 지갑 주소가 아니다.**
  * `DojangScroll.isVerified(address, bytes32)`의 두 번째 인자.
  */

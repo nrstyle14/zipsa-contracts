@@ -24,10 +24,15 @@ Verified Address as the identity source.
    to a spending account that is bound to the same verified owner. Anyone can execute a refill,
    but only while the spending account's balance is below the threshold, and every refill is
    bounded by a period cap and a total refill count.
+6. **Payment gate (testnet demo).** A shop receives through `PaymentGate`. On every payment it
+   checks the token is allowed, the payer's responsible owner holds a valid Dojang stamp, and,
+   on the agent path, that the caller is bound to that same owner. The agent path needs no
+   `approve`: the spending account signs a delegation whose delegate is the gate, and the gate
+   redeems it to move funds straight from the spending account to the shop's fixed address.
 
 ## Deployed contracts (GIWA Sepolia)
 
-All 15 contracts are verified on Blockscout. Total deployment gas: **12,316,997** (initial 12 contracts: 10,841,972; automatic-refill enforcers: 1,475,025).
+All 16 contracts are verified on Blockscout. Total deployment gas: **13,621,307** (initial 12 contracts: 10,841,972; automatic-refill enforcers: 1,475,025; payment gate: 1,304,310).
 
 Written by ZIPSA:
 
@@ -40,6 +45,7 @@ Written by ZIPSA:
 | `JipsaPerTxCapEnforcer` | ERC-7710 caveat: per-transaction amount cap | [`0xdea5DF3357e0EEf6A841d3639d115eb57b42B642`](https://sepolia-explorer.giwa.io/address/0xdea5DF3357e0EEf6A841d3639d115eb57b42B642) |
 | `RefillThresholdEnforcer` | ERC-7710 caveat: refill only a bound spending account, only below its balance threshold, exact refill amount, owner verified | [`0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C`](https://sepolia-explorer.giwa.io/address/0x7BA5Ef6dFb5712db79A4802FE16B31389242b95C) |
 | `BoundDelegatorEnforcer` | ERC-7710 caveat: delegating account and agent bound to the same verified owner, optional verified recipient | [`0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f`](https://sepolia-explorer.giwa.io/address/0xeBF1D1C0f1D982f7FeFB6aE0d84bcceF6E6c636f) |
+| `PaymentGate` | Shop payment gate: allowed token, verified responsible owner, caller bound to that owner; fixed destination. Testnet demo | [`0xF188B4261CC1AA1491a234Ebc5c7E4E9854f0d38`](https://sepolia-explorer.giwa.io/address/0xF188B4261CC1AA1491a234Ebc5c7E4E9854f0d38) |
 
 From the delegation-framework (v1.3.0, deployed unchanged):
 
@@ -110,6 +116,25 @@ the spending account under a 15 tKRW per-transaction cap.
 The main wallet sent out 120 tKRW in three refills, equal to the period cap. Once the cap was
 reached the refills stopped, and the agent stopped when the spending account ran out.
 
+### Payment gate
+
+`PaymentGate` has two entry points. `pay(token, amount, ref)` is for a person who approved the
+gate first. `payDelegated(permissionContext, token, amount, ref)` is for an agent: the context
+holds exactly one delegation, signed by the spending account with the gate as delegate and the
+caveats Timestamp → AllowedTargets → AllowedMethods → JipsaPerTxCap → ERC20PeriodTransfer (1 hour) →
+ERC20TransferAmount. Enforcer reverts bubble up unchanged. Because a delegation is not a secret, the
+gate always checks that `registry.ownerOf(msg.sender)` equals the payer's owner (`CallerNotBound`);
+a leaked delegation cannot be used by an address that is not bound to the same owner. Each order
+reference can be paid once (`RefAlreadyPaid`), and the gate never holds funds. Design notes:
+[`docs/design/M2_PaymentGate.md`](docs/design/M2_PaymentGate.md), tests G1–G14 in
+`test/erc7710/PaymentGate.t.sol`.
+
+```bash
+forge script script/DeployPaymentGate.s.sol --rpc-url giwa_sepolia --broadcast \
+  --verify --verifier blockscout --verifier-url https://sepolia-explorer.giwa.io/api/
+# env: PRIVATE_KEY GATE_ADDRESS REGISTRY_ADDRESS DELEGATION_MANAGER DESTINATION TOKEN_ADDRESS
+```
+
 Revert data from any of these can be decoded with `decodeRevert` in
 `packages/delegation/src/errors.ts`, which bundles the DelegationManager and enforcer error ABIs.
 
@@ -118,12 +143,12 @@ Revert data from any of these can be decoded with `decodeRevert` in
 ```bash
 git submodule update --init --recursive
 forge build
-forge test                        # 55 passed, 9 skipped (fork-only), 64 total
+forge test                        # 111 passed, 9 skipped (fork-only), 120 total
 FOUNDRY_PROFILE=fork forge test   # runs the 9 fork tests against the pinned block in foundry.toml
 
 pnpm install
 pnpm -F @jipsa/delegation typecheck
-pnpm -F @jipsa/delegation test    # 26 passed, 5 skipped (need a local fork), 31 total
+pnpm -F @jipsa/delegation test    # 51 passed, 5 skipped (need a local fork), 56 total
 ```
 
 Fork tests skip under the default profile (chain ID is not GIWA Sepolia) and run only with

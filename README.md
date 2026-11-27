@@ -82,6 +82,34 @@ Each link opens the transaction on Blockscout.
 | `disableDelegation` by the owner | [`0x3ccf…ae46`](https://sepolia-explorer.giwa.io/tx/0x3ccf4056b174357ba8889c0c168f99ea8b34b436f4f0f5539a57f2332cd4ae46) | success, 102,557 gas |
 | `redeemDelegations` right after revocation | [`0x5bb1…d9ef`](https://sepolia-explorer.giwa.io/tx/0x5bb13c0b52de61175637a42bf2228bda1f377316c9887a23bd06850ba8b8d9ef) | **reverted** · `CannotUseADisabledDelegation`, 73,073 gas |
 
+### Automatic refill
+
+One run on GIWA Sepolia on 2026-11-27, in block order. The main wallet is the owner account from
+the cycle above. It signed one refill delegation open to any executor: refill 40 tKRW when the
+spending account [`0x7c15…78Eb`](https://sepolia-explorer.giwa.io/address/0x7c15B921D9ab30c111588ED6409545c2519078Eb) holds less than 30 tKRW, at most
+120 tKRW per day and 5 refills in total. The keeper [`0x8f2d…7328`](https://sepolia-explorer.giwa.io/address/0x8f2dA7cA5846fc8FBCDF52FE397A668012c57328)
+that executes the refills is an ordinary address with no special rights. The agent spends from
+the spending account under a 15 tKRW per-transaction cap.
+
+| Step | Transaction | Result |
+|---|---|---|
+| Spending account EOA converted with EIP-7702 (type-4) | [`0x5c2d…e598`](https://sepolia-explorer.giwa.io/tx/0x5c2d05f941e9e666eb17c4e7ee116ea94802a51bbadf1177420361f2d3e3e598) | success, 36,844 gas |
+| `proposeBinding`, main wallet proposes the spending account | [`0x7f4b…3abf`](https://sepolia-explorer.giwa.io/tx/0x7f4bfa21c4f1151732fb7326723be7094bf286ae1e6d44e4d1bb9085eaab3abf) | success, 130,056 gas |
+| `acceptBinding`, spending account accepts | [`0xa626…052e`](https://sepolia-explorer.giwa.io/tx/0xa626b43d1817942bf1e8adf3a32200d008a79b20f42b9aa2b3a1328c8361052e) | success, 177,947 gas |
+| `redeemDelegations` by the agent, 10 tKRW paid from the spending account | [`0x5025…c453`](https://sepolia-explorer.giwa.io/tx/0x5025574a3582d3381d900381223167732b838e48f4f87428540146b4732cc453) | success, 349,970 gas |
+| `redeemDelegations` by the keeper, refill 1: 40 tKRW from the main wallet to the spending account | [`0xfef7…1a7c`](https://sepolia-explorer.giwa.io/tx/0xfef75b40872e9c240f7a940b682297fcf8543b858b5defff80e4260f71001a7c) | success, 407,395 gas |
+| `redeemDelegations` by the agent, 16 tKRW against a 15 tKRW per-transaction cap | [`0xa8d2…f273`](https://sepolia-explorer.giwa.io/tx/0xa8d2375f867aef27faacc8318bff003f79e8ccedf13501998baca0385eb3f273) | **reverted** · `PerTxCapExceeded`, 104,839 gas |
+| `redeemDelegations` by the agent to an unverified recipient (`0x…dEaD`) | [`0xd88d…5f66`](https://sepolia-explorer.giwa.io/tx/0xd88d5c3d8ef8aeac48a428463e052352a6c9e953ec6ba51fdc6408f7ff755f66) | **reverted** · `RecipientNotVerified`, 244,290 gas |
+| `redeemDelegations` by the keeper, refill 2: 40 tKRW | [`0x87c3…f09a`](https://sepolia-explorer.giwa.io/tx/0x87c3da7f4a7a06ffbe080b4e4f96eb75c61624c71068ce08bbb40a5af7eaf09a) | success, 292,762 gas |
+| `redeemDelegations` by the keeper, refill 3: 40 tKRW, period cap of 120 tKRW reached | [`0x0e81…21f7`](https://sepolia-explorer.giwa.io/tx/0x0e817c0662083b974879730a1911bfc553bb95117482d6834c57facda58921f7) | success, 292,762 gas |
+| `redeemDelegations` by the keeper, fourth refill in the same period | [`0x2491…25e7`](https://sepolia-explorer.giwa.io/tx/0x24919b05370cbaf29738add2877e7c08c033df86a5c0f3e6d41080430f3e25e7) | **reverted** · `ERC20PeriodTransferEnforcer:transfer-amount-exceeded`, 207,825 gas |
+| `redeemDelegations` by the agent, 10 tKRW with the spending account empty | [`0x432b…631b`](https://sepolia-explorer.giwa.io/tx/0x432bb6cfb2991b26fd7710954dba63caaf3bd408d7f0e1900cc74db0e880631b) | **reverted** · `ERC20InsufficientBalance`, 279,634 gas |
+| `disableDelegation` of the refill delegation by the main wallet | [`0x74c7…daee`](https://sepolia-explorer.giwa.io/tx/0x74c7e72a91b0432d33266889908dcdce2446f53a058cfa7561c762786a41daee) | success, 84,150 gas |
+| `redeemDelegations` by the keeper right after revocation | [`0xa89e…fc73`](https://sepolia-explorer.giwa.io/tx/0xa89e901ac21dba2dc65772ffa197099dc89ea74bd3768ad3d6dcf80624befc73) | **reverted** · `CannotUseADisabledDelegation`, 63,162 gas |
+
+The main wallet sent out 120 tKRW in three refills, equal to the period cap. Once the cap was
+reached the refills stopped, and the agent stopped when the spending account ran out.
+
 Revert data from any of these can be decoded with `decodeRevert` in
 `packages/delegation/src/errors.ts`, which bundles the DelegationManager and enforcer error ABIs.
 

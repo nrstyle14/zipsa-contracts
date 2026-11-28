@@ -1,5 +1,5 @@
 import { encodeAbiParameters, encodePacked, type Address, type Hex } from "viem";
-import { ADDR, ADDR_F1 } from "./addresses.js";
+import { ADDR, ADDR_F1, ADDR_M2 } from "./addresses.js";
 import type { Caveat, JipsaPolicy } from "./delegation.js";
 
 /** `IERC20.transfer(address,uint256)` 셀렉터 */
@@ -7,6 +7,9 @@ export const TRANSFER_SELECTOR = "0xa9059cbb" as const satisfies Hex;
 
 /** 기간 enforcer의 기간 길이 — 1일 */
 export const PERIOD_DURATION_1D = 86_400n;
+
+/** 기간 enforcer의 기간 길이 — 1시간 (라이브 데모의 한도 기간) */
+export const PERIOD_DURATION_1H = 3_600n;
 
 /**
  * `startDate` 기본값에 적용하는 안전 여유 (초).
@@ -158,7 +161,7 @@ export function buildCaveats(policy: JipsaPolicy, startDate?: bigint): Caveat[] 
     },
     {
       enforcer: ADDR.periodTransferEnforcer,
-      terms: periodTransferTerms(ADDR.tKRW, policy.dailyCap, start),
+      terms: periodTransferTerms(ADDR.tKRW, policy.dailyCap, start, policy.periodDuration ?? PERIOD_DURATION_1D),
       args: EMPTY_ARGS,
     },
     {
@@ -355,7 +358,7 @@ export function buildSpendCaveats(
     { enforcer: ADDR.perTxCapEnforcer, terms: perTxCapTerms(ADDR.tKRW, policy.perTxCap), args: EMPTY_ARGS },
     {
       enforcer: ADDR.periodTransferEnforcer,
-      terms: periodTransferTerms(ADDR.tKRW, policy.dailyCap, start),
+      terms: periodTransferTerms(ADDR.tKRW, policy.dailyCap, start, policy.periodDuration ?? PERIOD_DURATION_1D),
       args: EMPTY_ARGS,
     },
     {
@@ -366,6 +369,97 @@ export function buildSpendCaveats(
     {
       enforcer: f1.boundDelegatorEnforcer,
       terms: boundDelegatorTerms(ADDR.dojangGate, ADDR.bindingRegistry, ADDR.tKRW, policy.verifiedRecipientOnly),
+      args: EMPTY_ARGS,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// M2-1 결제 게이트 — 지출용 계정 →(게이트 위임, 수임자 = 게이트)→ PaymentGate → 상점 수신처
+// 설계: docs/design/M2_PaymentGate.md
+// ---------------------------------------------------------------------------
+
+/** 게이트 위임 정책 (지출용 계정이 서명) */
+export interface GatePolicy {
+  /** 수임자 — 결제 게이트 주소. 생략하면 `ADDR_M2.paymentGate` */
+  gate?: Address;
+  perTxCap: bigint;
+  /** 기간당 합계 상한 */
+  periodCap: bigint;
+  /** 기간 길이 (초). 기본 1시간 */
+  periodDuration?: bigint;
+  /** 누적 총액 */
+  totalBudget: bigint;
+  /** unix 초 */
+  validUntil: number;
+}
+
+export interface GateAddresses {
+  token: Address;
+  timestampEnforcer: Address;
+  allowedTargetsEnforcer: Address;
+  allowedMethodsEnforcer: Address;
+  perTxCapEnforcer: Address;
+  periodTransferEnforcer: Address;
+  erc20TransferAmountEnforcer: Address;
+}
+
+/** 게이트 위임의 수임자 (정책 → `ADDR_M2`) — 없으면 예외 */
+export function resolveGate(policy: Pick<GatePolicy, "gate">): Address {
+  const gate = policy.gate ?? ADDR_M2.paymentGate;
+  if (!gate) {
+    throw new Error("결제 게이트 주소가 없습니다 — 배포 후 ADDR_M2.paymentGate를 채우거나 policy.gate로 넘기세요");
+  }
+  return gate;
+}
+
+/**
+ * 게이트 위임 caveat 묶음을 **확정된 순서로** 만든다.
+ *
+ * ① Timestamp ② AllowedTargets[token] ③ AllowedMethods[transfer] ④ JipsaPerTxCap
+ * ⑤ ERC20PeriodTransfer ⑥ ERC20TransferAmount
+ *
+ * `BoundDelegatorEnforcer`는 넣지 않는다 — 그 enforcer는 리딤하는 주소(여기서는 게이트)가 주인에게
+ * 묶였는지 보는데 게이트는 묶인 주소가 아니다. 같은 확인을 게이트가 호출자(에이전트)에 대해 직접 한다
+ * (`CallerNotBound`). 수신처는 게이트가 생성자에서 고정한 주소뿐이다.
+ * 회귀 테스트: test/erc7710/PaymentGate.t.sol
+ *
+ * @param addresses 다른 체인·로컬 배포용. 생략하면 GIWA Sepolia 주소
+ * @param startDate 기간 enforcer 기준 시각 — `buildCaveats`와 같은 규칙 (생략 시 로컬 시각 − 여유)
+ */
+export function buildGateCaveats(
+  policy: GatePolicy,
+  addresses?: Partial<GateAddresses>,
+  startDate?: bigint,
+): Caveat[] {
+  if (policy.perTxCap <= 0n) throw new Error("perTxCap은 0보다 커야 합니다");
+  if (policy.perTxCap > policy.periodCap) {
+    throw new Error("perTxCap이 periodCap보다 크면 결제가 한 번도 통과하지 못합니다");
+  }
+  const a: GateAddresses = {
+    token: ADDR.tKRW,
+    timestampEnforcer: ADDR.timestampEnforcer,
+    allowedTargetsEnforcer: ADDR.allowedTargetsEnforcer,
+    allowedMethodsEnforcer: ADDR.allowedMethodsEnforcer,
+    perTxCapEnforcer: ADDR.perTxCapEnforcer,
+    periodTransferEnforcer: ADDR.periodTransferEnforcer,
+    erc20TransferAmountEnforcer: ADDR.erc20TransferAmountEnforcer,
+    ...addresses,
+  };
+  const start = defaultStartDate(startDate);
+  return [
+    { enforcer: a.timestampEnforcer, terms: timestampTerms(policy.validUntil), args: EMPTY_ARGS },
+    { enforcer: a.allowedTargetsEnforcer, terms: allowedTargetsTerms([a.token]), args: EMPTY_ARGS },
+    { enforcer: a.allowedMethodsEnforcer, terms: allowedMethodsTerms([TRANSFER_SELECTOR]), args: EMPTY_ARGS },
+    { enforcer: a.perTxCapEnforcer, terms: perTxCapTerms(a.token, policy.perTxCap), args: EMPTY_ARGS },
+    {
+      enforcer: a.periodTransferEnforcer,
+      terms: periodTransferTerms(a.token, policy.periodCap, start, policy.periodDuration ?? PERIOD_DURATION_1H),
+      args: EMPTY_ARGS,
+    },
+    {
+      enforcer: a.erc20TransferAmountEnforcer,
+      terms: totalBudgetTerms(a.token, policy.totalBudget),
       args: EMPTY_ARGS,
     },
   ];

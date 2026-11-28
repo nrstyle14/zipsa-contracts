@@ -103,6 +103,11 @@ export interface JipsaPolicy {
   verifiedRecipientOnly: boolean;
   /** delegate — 위임받는 에이전트 EOA */
   agent: Address;
+  /**
+   * `dailyCap`의 기간 길이 (초). 생략하면 1일(86,400).
+   * 이름은 호환을 위해 `dailyCap`으로 두었다 — 1시간으로 두면 "시간당 한도"가 된다.
+   */
+  periodDuration?: bigint;
 }
 
 // ---------------------------------------------------------------------------

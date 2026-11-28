@@ -25,6 +25,10 @@ export const ERROR_ABI: Abi = [
   // 셀렉터도 같으므로 위의 Dojang 프래그먼트로 먼저 디코딩된다. 이름·인자 형태는 동일하다.
   ...ABI.refillThresholdEnforcer.filter((f) => f.type === "error"),
   ...ABI.boundDelegatorEnforcer.filter((f) => f.type === "error"),
+  // M2-1 결제 게이트
+  ...ABI.paymentGate.filter((f) => f.type === "error"),
+  // tKRW (OZ ERC20) — 빈 결제 계정의 ERC20InsufficientBalance 등
+  ...ABI.tKRW.filter((f) => f.type === "error"),
 ];
 
 /**
@@ -110,6 +114,22 @@ const KNOWN_CUSTOM: Record<string, string> = {
 
   // ---- F1 지출 (BoundDelegatorEnforcer) ----
   DelegatorNotBound: "위임한 지출용 계정이 어떤 주인에게도 바인딩되어 있지 않습니다",
+
+  // ---- M2-1 결제 게이트 (PaymentGate) ----
+  ZeroAmount: "결제 금액이 0입니다",
+  TokenNotAllowed: "상점이 허용하지 않은 토큰입니다",
+  RefAlreadyPaid: "이미 결제된 주문 번호입니다",
+  PayerNotAccountable: "결제 계정의 책임자를 찾을 수 없습니다",
+  PayerNotVerified: "결제 책임자의 도장이 유효하지 않습니다",
+  CallerNotBound: "결제를 요청한 주소가 결제 계정의 주인에게 묶여 있지 않습니다",
+  InvalidDelegationChain: "위임이 정확히 1장이 아닙니다",
+  PaymentNotReceived: "상점 수신처에 결제 금액이 정확히 들어오지 않았습니다",
+  NotAdmin: "게이트 관리자가 아닙니다",
+  Reentrancy: "재진입이 막혔습니다",
+  TokenCallFailed: "토큰 호출이 실패했습니다",
+
+  // ---- tKRW ----
+  ERC20InsufficientBalance: "결제 계정의 tKRW 잔액이 부족합니다",
 };
 
 /** 스톡 enforcer의 require 문자열 → 사람이 읽는 문장 */

@@ -129,6 +129,19 @@ reference can be paid once (`RefAlreadyPaid`), and the gate never holds funds. D
 [`docs/design/M2_PaymentGate.md`](docs/design/M2_PaymentGate.md), tests G1–G14 in
 `test/erc7710/PaymentGate.t.sol`.
 
+On-chain run on GIWA Sepolia on 2026-11-28, in block order. The gate's destination is the verified
+merchant [`0x49af…181F`](https://sepolia-explorer.giwa.io/address/0x49af607820B112Aa35097D0eb9B8AfE2235C181F); the
+spending account signed a gate delegation with a 15 tKRW per-transaction cap and a 200 tKRW hourly cap.
+
+| Step | Transaction | Result |
+|---|---|---|
+| Deploy `PaymentGate` | [`0xf9c3…c56a`](https://sepolia-explorer.giwa.io/tx/0xf9c30afa2ede9715d136a588e8825bb7f1b180c7b84602407bf072ec789cc56a) | success, 1,304,310 gas |
+| `setTokenAllowed(tKRW, true)` by the admin | [`0x4ae5…1ba8`](https://sepolia-explorer.giwa.io/tx/0x4ae5bdc6cdc0e2b9d3d626d41ce3cf6e6a84d34c150e0df2ca9825416da31ba8) | success, 47,809 gas |
+| `payDelegated` by the bound agent, 10 tKRW (first call) | [`0x82ba…67fa`](https://sepolia-explorer.giwa.io/tx/0x82ba14d3e82b35275f283a8f86110b6c13a7e6c5177e89c1ec4d7405304767fa) | success, 554,722 gas |
+| `payDelegated` by the bound agent, 5,000 tKRW | [`0xaa0d…a875`](https://sepolia-explorer.giwa.io/tx/0xaa0de3046fbb8e680951123089c4f983abb9c5a665002f3774d9b1e46cf7a875) | **reverted** · `PerTxCapExceeded`, 316,713 gas |
+| `payDelegated` by an unbound address holding the same delegation | [`0xda80…efd0`](https://sepolia-explorer.giwa.io/tx/0xda8030be367c107a86095327307bfa56acedba87c3a1921c9a02b5ad0af3efd0) | **reverted** · `CallerNotBound`, 193,275 gas |
+| `payDelegated` by a bound agent after its owner revoked the gate delegation | [`0xe190…8ddd`](https://sepolia-explorer.giwa.io/tx/0xe1902a0820e88b677f8bbec41662e3cb82d2a96ea26b7b0061e873aa79a18ddd) | **reverted** · `CannotUseADisabledDelegation`, 262,632 gas |
+
 ```bash
 forge script script/DeployPaymentGate.s.sol --rpc-url giwa_sepolia --broadcast \
   --verify --verifier blockscout --verifier-url https://sepolia-explorer.giwa.io/api/
